@@ -1,0 +1,16 @@
+Dataset,Concurrency,Algorithm,Served_Requests,Dropped_Requests,Success_Rate_%,Avg_Latency_s,P95_Latency_s,P99_Latency_s,Norm_Performance,Avg_Solve_Time_ms,Mean_CPU_Util_%,Mean_GPU_Util_%,Mean_Net_Util_%
+nasa,18,Offload-only (Default KPA),6017,0,100.0,3.5,3.5,3.5,1719.14,0.01,0.46,0.0,24.23
+nasa,18,Local-only (Default KPA),6017,0,100.0,9.8,9.8,9.8,613.98,0.01,9.18,0.0,0.4
+nasa,18,Local-offload (Default KPA),6017,0,100.0,6.2,6.2,6.2,970.48,0.01,4.59,0.0,6.06
+nasa,18,ScaleWave (GA - Paper),6017,0,100.0,3.626,3.5,8.5,1659.26,175.203,16.36,25.0,30.8
+nasa,18,Deep RL (PPO - Ours),6017,0,100.0,3.626,3.5,8.5,1659.26,0.18,16.36,25.0,30.8
+nasa,35,Offload-only (Default KPA),6017,0,100.0,3.5,3.5,3.5,1719.14,0.01,0.45,0.0,24.0
+nasa,35,Local-only (Default KPA),6017,0,100.0,9.8,9.8,9.8,613.98,0.01,9.09,0.0,0.4
+nasa,35,Local-offload (Default KPA),6017,0,100.0,6.2,6.2,6.2,970.48,0.01,4.55,0.0,6.0
+nasa,35,ScaleWave (GA - Paper),6017,0,100.0,3.626,3.5,8.5,1659.26,173.067,16.36,25.0,30.8
+nasa,35,Deep RL (PPO - Ours),6017,0,100.0,3.626,3.5,8.5,1659.26,0.178,16.36,25.0,30.8
+nasa,70,Offload-only (Default KPA),6017,0,100.0,3.5,3.5,3.5,1719.14,0.01,0.45,0.0,24.0
+nasa,70,Local-only (Default KPA),6017,0,100.0,9.8,9.8,9.8,613.98,0.01,9.09,0.0,0.4
+nasa,70,Local-offload (Default KPA),6017,0,100.0,6.2,6.2,6.2,970.48,0.01,4.55,0.0,6.0
+nasa,70,ScaleWave (GA - Paper),6017,0,100.0,3.626,3.5,8.5,1659.26,173.442,16.36,25.0,30.8
+nasa,70,Deep RL (PPO - Ours),6017,0,100.0,3.626,3.5,8.5,1659.26,0.18,16.36,25.0,30.8

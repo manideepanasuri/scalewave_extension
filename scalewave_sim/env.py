@@ -57,10 +57,11 @@ class ScaleWaveEnv(gym.Env):
     """
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, arrivals=None, concurrency=18, dt=5.0):
+    def __init__(self, arrivals=None, concurrency=18, dt=5.0, baseline_mode=None):
         super().__init__()
         self.concurrency = concurrency
         self.dt = dt
+        self.baseline_mode = baseline_mode
         self.num_services = 4
         self.service_names = ['cloud', 'edge_cpu', 'edge_gpu', 'hybrid']
 
@@ -107,8 +108,20 @@ class ScaleWaveEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
-        self.replicas = np.array([1, 1, 1, 1], dtype=np.float32)
-        self.traffic_split = np.array([25.0, 25.0, 25.0, 25.0], dtype=np.float32)
+        if self.baseline_mode == 'offload_only':
+            self.replicas = np.array([1, 0, 0, 0], dtype=np.float32)
+            self.traffic_split = np.array([100.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        elif self.baseline_mode == 'local_only':
+            self.replicas = np.array([0, 1, 0, 0], dtype=np.float32)
+            self.traffic_split = np.array([0.0, 100.0, 0.0, 0.0], dtype=np.float32)
+        elif self.baseline_mode == 'local_offload':
+            self.replicas = np.array([0, 0, 0, 1], dtype=np.float32)
+            self.traffic_split = np.array([0.0, 0.0, 0.0, 100.0], dtype=np.float32)
+        else:
+            self.replicas = np.array([1, 1, 1, 1], dtype=np.float32)
+            self.traffic_split = np.array([25.0, 25.0, 25.0, 25.0], dtype=np.float32)
+
+        self.queue_items = []
         self.queue = 0
         self.latencies = self.base_latencies.copy()
         self.throughputs = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
@@ -141,99 +154,162 @@ class ScaleWaveEnv(gym.Env):
         return bound
 
     def step(self, action):
-        bound = self.get_demand_bound()
-
-        # Handle discrete or normalized actions
-        action = np.array(action, dtype=np.float32)
-        if np.all(action <= 1.0 + 1e-6):
-            additional_replicas = np.floor(action * bound).astype(np.int32)
-        else:
-            additional_replicas = np.clip(action, 0, bound).astype(np.int32)
-
-        # 1. Capacity check & penalties
-        total_additional_resources = np.sum(additional_replicas[:, None] * self.resource_weights, axis=0)
-        current_used_resources = np.sum(self.replicas[:, None] * self.resource_weights, axis=0)
-        total_projected_resources = current_used_resources + total_additional_resources
-
-        violations = np.maximum(0.0, total_projected_resources - self.capacities)
-        capacity_penalty = np.sum(violations)
-
-        if capacity_penalty > 0:
-            scale_down = np.min(self.capacities / np.maximum(1e-5, total_projected_resources))
-            scale_down = min(1.0, max(0.0, scale_down))
-            additional_replicas = np.floor(additional_replicas * scale_down).astype(np.int32)
-
-        # 2. ScaleWave Eq. 2 Traffic Distribution
-        p_ne = self.throughputs / (np.maximum(1e-5, self.latencies) * np.maximum(1, self.replicas))
-        projected_reps = self.replicas + additional_replicas
-        effective_throughput_potential = self.throughputs * projected_reps
-
-        sum_tp = np.sum(effective_throughput_potential)
-        if sum_tp > 0:
-            target_td = (effective_throughput_potential / sum_tp) * 100.0
-        else:
-            target_td = np.full(4, 25.0, dtype=np.float32)
-
-        # Apply exact gradual smoothing filter from optimizer.py
-        self.traffic_split = get_small_traffic_adjustments(self.traffic_split, target_td, adjustment_factor=0.25)
-
-        # 3. Simulate Request Arrival & Serving
-        new_arrivals = self.arrivals[self.current_step] if self.current_step < len(self.arrivals) else 0
-        total_requests = self.queue + new_arrivals
-
-        reqs_per_service = (total_requests * (self.traffic_split / 100.0)).astype(np.int32)
-        served_per_service = np.zeros(4, dtype=np.int32)
-        step_latencies = []
-
-        for e in range(self.num_services):
-            capacity_e = self.replicas[e] * self.concurrency
-            reqs = reqs_per_service[e]
-
-            # Service processing capacity in this dt window
-            service_rate = capacity_e * (self.dt / max(1.0, self.base_latencies[e]))
-            served = min(reqs, int(service_rate))
-            served_per_service[e] = served
-
-            # Latency modeling: base + queuing delay
-            load_factor = reqs / max(1.0, capacity_e)
-            if load_factor <= 1.0:
-                lat = self.base_latencies[e] * (1.0 + 0.15 * load_factor)
+        # 1. 300s HTTP Timeout check on FIFO queue
+        TIMEOUT_STEPS = int(300.0 / self.dt)
+        active_queue = []
+        timeout_dropped = 0
+        for arr_step, count in self.queue_items:
+            if (self.current_step - arr_step) >= TIMEOUT_STEPS:
+                timeout_dropped += count
             else:
-                lat = self.base_latencies[e] * (1.0 + 1.25 * (load_factor ** 1.6))
+                active_queue.append([arr_step, count])
+        self.queue_items = active_queue
+        self.history['requests_dropped'] += timeout_dropped
+        if timeout_dropped > 0:
+            self.history['latencies'].extend([300.0] * timeout_dropped)
 
-            # Bottleneck resource penalty (e.g. Jetson GPU saturating, cellular uplink saturating)
-            res_util = np.max(current_used_resources / self.capacities)
-            if res_util > 0.90:
-                lat *= 1.5 + (res_util - 0.90) * 5.0
+        # 2. Ingest arrivals for current step
+        new_arrivals = self.arrivals[self.current_step] if self.current_step < len(self.arrivals) else 0
+        if new_arrivals > 0:
+            self.queue_items.append([self.current_step, new_arrivals])
+        total_requests = sum(c for _, c in self.queue_items)
+        self.queue = total_requests
 
-            # Knative cold-start addition if scaling up new replica
-            if additional_replicas[e] > 0 and self.replicas[e] <= 1:
-                lat += 2.5
+        # 3. Scaling & Traffic Allocation
+        capacity_penalty = 0.0
+        additional_replicas = np.zeros(4, dtype=np.int32)
 
-            self.latencies[e] = lat
-            self.throughputs[e] = max(0.01, served / self.dt)
-            if served > 0:
-                step_latencies.extend([lat] * served)
+        if self.baseline_mode == 'offload_only':
+            self.traffic_split = np.array([100.0, 0.0, 0.0, 0.0], dtype=np.float32)
+            target = max(1, int(np.ceil(total_requests / self.concurrency)))
+            max_reps = int(self.capacities[3] / self.resource_weights[0, 3])
+            self.replicas[0] = min(max_reps, target)
+        elif self.baseline_mode == 'local_only':
+            self.traffic_split = np.array([0.0, 100.0, 0.0, 0.0], dtype=np.float32)
+            target = max(1, int(np.ceil(total_requests / self.concurrency)))
+            max_reps = int(self.capacities[0] / self.resource_weights[1, 0])
+            self.replicas[1] = min(max_reps, target)
+        elif self.baseline_mode == 'local_offload':
+            self.traffic_split = np.array([0.0, 0.0, 0.0, 100.0], dtype=np.float32)
+            target = max(1, int(np.ceil(total_requests / self.concurrency)))
+            max_reps = min(int(self.capacities[0] / self.resource_weights[3, 0]), int(self.capacities[3] / self.resource_weights[3, 3]))
+            self.replicas[3] = min(max_reps, target)
+        else:
+            bound = self.get_demand_bound()
+            action = np.array(action, dtype=np.float32)
+            if np.all(action <= 1.0 + 1e-6):
+                additional_replicas = np.floor(action * bound).astype(np.int32)
+            else:
+                additional_replicas = np.clip(action, 0, bound).astype(np.int32)
 
-        total_served = int(np.sum(served_per_service))
-        self.queue = max(0, total_requests - total_served)
+            total_additional_resources = np.sum(additional_replicas[:, None] * self.resource_weights, axis=0)
+            current_used_resources = np.sum(self.replicas[:, None] * self.resource_weights, axis=0)
+            total_projected_resources = current_used_resources + total_additional_resources
 
-        # 4. Knative Pod Autoscaler (KPA) replica updating
+            violations = np.maximum(0.0, total_projected_resources - self.capacities)
+            capacity_penalty = np.sum(violations)
+
+            if capacity_penalty > 0:
+                scale_down = np.min(self.capacities / np.maximum(1e-5, total_projected_resources))
+                scale_down = min(1.0, max(0.0, scale_down))
+                additional_replicas = np.floor(additional_replicas * scale_down).astype(np.int32)
+
+            # ScaleWave Eq. 2 Traffic Distribution
+            p_ne = self.throughputs / (np.maximum(1e-5, self.latencies) * np.maximum(1, self.replicas))
+            projected_reps = self.replicas + additional_replicas
+            effective_throughput_potential = self.throughputs * projected_reps
+
+            sum_tp = np.sum(effective_throughput_potential)
+            if sum_tp > 0:
+                target_td = (effective_throughput_potential / sum_tp) * 100.0
+            else:
+                target_td = np.full(4, 25.0, dtype=np.float32)
+
+            self.traffic_split = get_small_traffic_adjustments(self.traffic_split, target_td, adjustment_factor=0.25)
+
+        # 4. Service Processing & Physical Capacity Modeling
+        current_used_resources = np.sum(self.replicas[:, None] * self.resource_weights, axis=0)
+        reqs_per_service = (total_requests * (self.traffic_split / 100.0)).astype(np.int32)
+        total_step_capacity = 0.0
+
         for e in range(self.num_services):
-            target_reps = int(np.ceil(reqs_per_service[e] / self.concurrency))
-            if target_reps > self.replicas[e]:
-                # Scale up immediately based on KPA demand + optimizer allocation
-                self.replicas[e] = min(self.replicas[e] + additional_replicas[e] + 1, 15)
-            elif target_reps < self.replicas[e]:
-                # Scale down gradually (cooldown)
-                self.replicas[e] = max(1, self.replicas[e] - 1)
+            reqs = reqs_per_service[e]
+            if reqs == 0:
+                continue
+            rep = self.replicas[e]
 
-        # 5. Reward calculation (Eq. 1 objective - penalties)
-        norm_perf = total_served / max(0.1, np.mean(self.latencies))
+            # Physical capacity modeling from Table III & IV:
+            if e == 0:  # Cloud: 50 Mbps network uplink (8 Mb per image upload)
+                base_cap = (self.capacities[3] / 8.0) * self.dt
+                eff = max(0.39, 1.0 / (1.0 + 0.015 * max(0, reqs - 10)))
+                total_step_capacity += base_cap * eff
+            elif e == 1:  # Edge-CPU: 12 worker CPU cores (1.8 core-s per request)
+                base_cap = (self.capacities[0] / 1.8) * self.dt
+                eff = max(0.40, 1.0 / (1.0 + 0.012 * max(0, reqs - 12)))
+                total_step_capacity += base_cap * eff
+            elif e == 2:  # Edge-GPU: Jetson Nano Maxwell GPU (2.8s per request)
+                total_step_capacity += rep * (self.dt / self.base_latencies[e])
+            elif e == 3:  # Hybrid: Feature extraction on CPU (0.8 core-s) + negligible upload
+                base_cap = (self.capacities[0] / 0.8) * self.dt
+                eff = max(0.45, 1.0 / (1.0 + 0.008 * max(0, reqs - 16)))
+                total_step_capacity += base_cap * eff
+
+        to_serve = min(total_requests, int(total_step_capacity))
+        rem = to_serve
+        step_served = 0
+        step_dropped = 0
+        step_latencies = []
+        new_q = []
+
+        base_l = self.base_latencies[np.argmax(self.traffic_split)]
+        for arr_step, count in self.queue_items:
+            if rem >= count:
+                wait_s = (self.current_step - arr_step) * self.dt
+                lat = base_l + wait_s
+                if lat >= 300.0:
+                    step_dropped += count
+                    step_latencies.extend([300.0] * count)
+                else:
+                    step_served += count
+                    step_latencies.extend([lat] * count)
+                rem -= count
+            elif rem > 0:
+                wait_s = (self.current_step - arr_step) * self.dt
+                lat = base_l + wait_s
+                if lat >= 300.0:
+                    step_dropped += rem
+                    step_latencies.extend([300.0] * rem)
+                else:
+                    step_served += rem
+                    step_latencies.extend([lat] * rem)
+                new_q.append([arr_step, count - rem])
+                rem = 0
+            else:
+                new_q.append([arr_step, count])
+
+        self.queue_items = new_q
+        self.queue = sum(c for _, c in self.queue_items)
+
+        self.latencies = np.full(4, np.mean(step_latencies) if len(step_latencies) > 0 else base_l, dtype=np.float32)
+        self.throughputs = np.full(4, max(0.01, step_served / (self.dt * 4)), dtype=np.float32)
+
+        # Remove served and dropped requests from FIFO queue
+        self.history['requests_served'] += step_served
+        self.history['requests_dropped'] += step_dropped
+        self.history['latencies'].extend(step_latencies)
+
+        # 5. Knative Pod Autoscaler (KPA) replica updating (for ScaleWave)
+        if self.baseline_mode is None:
+            for e in range(self.num_services):
+                target_reps = int(np.ceil(reqs_per_service[e] / self.concurrency))
+                if target_reps > self.replicas[e]:
+                    self.replicas[e] = min(self.replicas[e] + additional_replicas[e] + 1, 15)
+                elif target_reps < self.replicas[e]:
+                    self.replicas[e] = max(1, self.replicas[e] - 1)
+
+        norm_perf = step_served / max(0.1, np.mean(self.latencies))
         reward = float(norm_perf - (capacity_penalty * 100.0) - (self.queue * 0.5))
 
-        self.history['requests_served'] += total_served
-        self.history['latencies'].extend(step_latencies)
         self.history['resource_utilization'].append(current_used_resources / self.capacities)
         self.history['traffic_splits'].append(self.traffic_split.copy())
 
@@ -241,8 +317,16 @@ class ScaleWaveEnv(gym.Env):
         terminated = self.current_step >= self.max_steps
         truncated = False
 
+        if terminated:
+            rem_q = sum(c for _, c in self.queue_items)
+            if rem_q > 0:
+                self.history['requests_dropped'] += rem_q
+                self.history['latencies'].extend([300.0] * rem_q)
+                self.queue_items = []
+                self.queue = 0
+
         info = {
-            'served': total_served,
+            'served': step_served,
             'queue': self.queue,
             'throughput': np.sum(self.throughputs),
             'avg_latency': np.mean(self.latencies),

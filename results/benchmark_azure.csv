@@ -1,0 +1,16 @@
+Dataset,Concurrency,Algorithm,Served_Requests,Dropped_Requests,Success_Rate_%,Avg_Latency_s,P95_Latency_s,P99_Latency_s,Norm_Performance,Avg_Solve_Time_ms,Mean_CPU_Util_%,Mean_GPU_Util_%,Mean_Net_Util_%
+azure,18,Offload-only (Default KPA),12415,0,100.0,3.542,3.5,3.5,3504.8,0.01,0.64,0.0,33.53
+azure,18,Local-only (Default KPA),12415,0,100.0,9.8,9.8,9.8,1266.84,0.01,12.6,0.0,0.55
+azure,18,Local-offload (Default KPA),12415,0,100.0,6.2,6.2,6.2,2002.42,0.01,6.3,0.0,8.32
+azure,18,ScaleWave (GA - Paper),12415,0,100.0,3.5,3.5,3.5,3547.14,173.408,16.36,25.0,30.8
+azure,18,Deep RL (PPO - Ours),12415,0,100.0,3.5,3.5,3.5,3547.14,0.239,16.36,25.0,30.8
+azure,35,Offload-only (Default KPA),12415,0,100.0,3.542,3.5,3.5,3504.8,0.01,0.45,0.0,24.0
+azure,35,Local-only (Default KPA),12415,0,100.0,9.8,9.8,9.8,1266.84,0.01,9.09,0.0,0.4
+azure,35,Local-offload (Default KPA),12415,0,100.0,6.2,6.2,6.2,2002.42,0.01,4.55,0.0,6.0
+azure,35,ScaleWave (GA - Paper),12415,0,100.0,3.5,3.5,3.5,3547.14,180.774,16.36,25.0,30.8
+azure,35,Deep RL (PPO - Ours),12415,0,100.0,3.5,3.5,3.5,3547.14,0.176,16.36,25.0,30.8
+azure,70,Offload-only (Default KPA),12415,0,100.0,3.542,3.5,3.5,3504.8,0.01,0.45,0.0,24.0
+azure,70,Local-only (Default KPA),12415,0,100.0,9.8,9.8,9.8,1266.84,0.01,9.09,0.0,0.4
+azure,70,Local-offload (Default KPA),12415,0,100.0,6.2,6.2,6.2,2002.42,0.01,4.55,0.0,6.0
+azure,70,ScaleWave (GA - Paper),12415,0,100.0,3.5,3.5,3.5,3547.14,168.476,16.36,25.0,30.8
+azure,70,Deep RL (PPO - Ours),12415,0,100.0,3.5,3.5,3.5,3547.14,0.177,16.36,25.0,30.8

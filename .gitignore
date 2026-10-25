@@ -150,6 +150,6 @@ uv.lock
 # Temporary files used for testing
 tmp/
 
-ScaleWave/
+ScaleWave/*
 
 venv/
