@@ -1,16 +1,16 @@
-Concurrency,Algorithm,Served_Requests,Dropped_Requests,Success_Rate_%,Avg_Latency_s,P95_Latency_s,P99_Latency_s,Norm_Performance,Avg_Solve_Time_ms,Mean_CPU_Util_%,Mean_GPU_Util_%,Mean_Net_Util_%
-18,Offload-only (Default KPA),8640,206,97.67,247.194,288.5,300.0,34.95,0.01,1.82,0.0,96.0
-18,Local-only (Default KPA),8846,0,100.0,15.417,64.8,79.8,573.77,0.01,14.36,0.0,0.63
-18,Local-offload (Default KPA),8846,0,100.0,6.978,11.2,26.2,1267.74,0.01,5.35,0.0,7.07
-18,ScaleWave (GA - Paper),8846,0,100.0,3.688,3.5,8.5,2398.73,168.261,16.59,25.35,31.23
-18,Deep RL (PPO - Ours),8846,0,100.0,3.674,3.5,8.5,2407.67,0.235,16.45,25.14,30.97
-35,Offload-only (Default KPA),8640,206,97.67,247.194,288.5,300.0,34.95,0.01,1.82,0.0,96.0
-35,Local-only (Default KPA),8846,0,100.0,15.417,64.8,79.8,573.77,0.01,12.78,0.0,0.56
-35,Local-offload (Default KPA),8846,0,100.0,6.978,11.2,26.2,1267.74,0.01,4.87,0.0,6.43
-35,ScaleWave (GA - Paper),8846,0,100.0,3.755,3.5,14.8,2355.69,178.536,16.5,25.21,31.06
-35,Deep RL (PPO - Ours),8846,0,100.0,3.674,3.5,8.5,2407.67,0.183,16.41,25.07,30.89
-70,Offload-only (Default KPA),8640,206,97.67,247.194,288.5,300.0,34.95,0.01,1.82,0.0,96.0
-70,Local-only (Default KPA),8846,0,100.0,15.417,64.8,79.8,573.77,0.01,10.81,0.0,0.48
-70,Local-offload (Default KPA),8846,0,100.0,6.978,11.2,26.2,1267.74,0.01,4.69,0.0,6.19
-70,ScaleWave (GA - Paper),8846,0,100.0,3.755,3.5,14.8,2355.69,178.557,16.5,25.21,31.06
-70,Deep RL (PPO - Ours),8846,0,100.0,3.674,3.5,8.5,2407.67,0.188,16.39,25.03,30.84
+Dataset,Concurrency,Algorithm,Served_Requests,Dropped_Requests,Success_Rate_%,Avg_Latency_s,P95_Latency_s,P99_Latency_s,Norm_Performance,Avg_Solve_Time_ms,Mean_CPU_Util_%,Mean_GPU_Util_%,Mean_Net_Util_%
+shanghai,18,Offload-only (Default KPA),1986,6860,22.45,287.777,300.0,300.0,6.9,0.01,3.33,0.0,96.0
+shanghai,18,Local-only (Default KPA),2640,6206,29.84,288.793,300.0,300.0,9.14,0.01,100.0,0.0,2.4
+shanghai,18,Local-offload (Default KPA),5494,3352,62.11,284.159,300.0,300.0,19.33,0.01,100.0,0.0,72.0
+shanghai,18,ScaleWave (GA - Paper),8846,0,100.0,59.33,71.2,76.2,149.1,155.188,70.6,70.35,68.95
+shanghai,18,Deep RL (PPO - Ours),8846,0,100.0,59.714,68.5,73.5,148.14,0.184,73.33,61.11,75.29
+shanghai,35,Offload-only (Default KPA),2756,6090,31.16,287.34,300.0,300.0,9.59,0.01,3.33,0.0,96.0
+shanghai,35,Local-only (Default KPA),3430,5416,38.77,288.629,300.0,300.0,11.88,0.01,100.0,0.0,2.4
+shanghai,35,Local-offload (Default KPA),6456,2390,72.98,283.659,300.0,300.0,22.76,0.01,99.94,0.0,71.96
+shanghai,35,ScaleWave (GA - Paper),8778,68,99.23,120.807,141.2,153.5,72.66,157.041,73.16,62.99,71.56
+shanghai,35,Deep RL (PPO - Ours),8771,75,99.15,117.55,133.5,158.5,74.61,0.178,72.5,60.42,74.43
+shanghai,70,Offload-only (Default KPA),3469,5377,39.22,287.19,300.0,300.0,12.08,0.01,3.33,0.0,96.0
+shanghai,70,Local-only (Default KPA),4072,4774,46.03,288.689,300.0,300.0,14.11,0.01,99.98,0.0,2.4
+shanghai,70,Local-offload (Default KPA),6059,2787,68.49,286.184,300.0,300.0,21.17,0.01,86.97,0.0,62.62
+shanghai,70,ScaleWave (GA - Paper),8554,292,96.7,249.618,281.2,300.0,34.27,156.192,77.97,50.69,74.8
+shanghai,70,Deep RL (PPO - Ours),8549,297,96.64,227.823,263.5,300.0,37.52,0.18,70.67,58.89,72.55

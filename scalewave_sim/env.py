@@ -57,7 +57,7 @@ class ScaleWaveEnv(gym.Env):
     """
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, arrivals=None, concurrency=18, dt=5.0, baseline_mode=None):
+    def __init__(self, arrivals=None, concurrency=18, dt=5.0, baseline_mode=None, resource_scale=None):
         super().__init__()
         self.concurrency = concurrency
         self.dt = dt
@@ -66,10 +66,17 @@ class ScaleWaveEnv(gym.Env):
         self.service_names = ['cloud', 'edge_cpu', 'edge_gpu', 'hybrid']
 
         # Table III Cluster Resource Capacities:
-        # ThinkPad (12 CPU, 16GB) + HP ProDesk (6 CPU, 8GB) + Pi4 (4 CPU, 8GB) + Jetson Nano (4 CPU, 4GB, 128 GPU)
-        # Allocatable to worker pods after control plane (K3s, Knative, Prometheus, Redis):
+        # ThinkPad manager (12 cores) dedicated to control plane (K3s, Knative, Prometheus, Redis, ScaleWave optimizer).
+        # Allocatable worker pod capacities (HP ProDesk 6 CPU + Pi4 4 CPU + Jetson Nano 4 CPU = 14 cores, ~12 allocatable):
         # [CPU (cores), Memory (GB), GPU (cores), Network Uplink (Mbps)]
-        self.capacities = np.array([22.0, 28.0, 128.0, 50.0], dtype=np.float32)
+        self.capacities = np.array([12.0, 16.0, 128.0, 50.0], dtype=np.float32)
+
+        # Resource scaling factor for each implementation (default 1.0):
+        # [0: Cloud Uplink, 1: Edge-CPU CPU, 2: Edge-GPU GPU, 3: Hybrid CPU & Uplink]
+        if resource_scale is None:
+            self.resource_scale = np.ones(4, dtype=np.float32)
+        else:
+            self.resource_scale = np.array(resource_scale, dtype=np.float32)
 
         # Resource consumption per replica (Table IV & config files):
         # 0: Cloud (0.1 CPU, 0.2 GB, 0 GPU, 12.0 Mbps uplink for full image upload)
@@ -77,10 +84,10 @@ class ScaleWaveEnv(gym.Env):
         # 2: Edge-GPU (0.5 CPU, 1.0 GB, 32 GPU cores on Jetson Nano, 0.2 Mbps uplink)
         # 3: Hybrid (1.0 CPU, 0.8 GB, 0 GPU, 3.0 Mbps uplink for 32 float embedding array)
         self.resource_weights = np.array([
-            [0.1, 0.2,  0.0, 12.0],
-            [2.0, 1.5,  0.0,  0.2],
-            [0.5, 1.0, 32.0,  0.2],
-            [1.0, 0.8,  0.0,  3.0],
+            [0.1, 0.2,  0.0, 12.0 * self.resource_scale[0]],
+            [2.0 * self.resource_scale[1], 1.5,  0.0,  0.2],
+            [0.5, 1.0, 32.0 * self.resource_scale[2],  0.2],
+            [1.0 * self.resource_scale[3], 0.8,  0.0,  3.0 * self.resource_scale[0]],
         ], dtype=np.float32)
 
         # Empirical base latencies from testbed under normal load (seconds)
@@ -123,6 +130,7 @@ class ScaleWaveEnv(gym.Env):
 
         self.queue_items = []
         self.queue = 0
+        self.service_accumulator = 0.0
         self.latencies = self.base_latencies.copy()
         self.throughputs = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
         self.active_connections = np.zeros(4, dtype=np.int32)
@@ -155,18 +163,16 @@ class ScaleWaveEnv(gym.Env):
 
     def step(self, action):
         # 1. 300s HTTP Timeout check on FIFO queue
-        TIMEOUT_STEPS = int(300.0 / self.dt)
         active_queue = []
         timeout_dropped = 0
+        min_base_l = float(np.min(self.base_latencies))
         for arr_step, count in self.queue_items:
-            if (self.current_step - arr_step) >= TIMEOUT_STEPS:
+            if (self.current_step - arr_step) * self.dt + min_base_l >= 300.0:
                 timeout_dropped += count
             else:
                 active_queue.append([arr_step, count])
         self.queue_items = active_queue
         self.history['requests_dropped'] += timeout_dropped
-        if timeout_dropped > 0:
-            self.history['latencies'].extend([300.0] * timeout_dropped)
 
         # 2. Ingest arrivals for current step
         new_arrivals = self.arrivals[self.current_step] if self.current_step < len(self.arrivals) else 0
@@ -183,17 +189,17 @@ class ScaleWaveEnv(gym.Env):
             self.traffic_split = np.array([100.0, 0.0, 0.0, 0.0], dtype=np.float32)
             target = max(1, int(np.ceil(total_requests / self.concurrency)))
             max_reps = int(self.capacities[3] / self.resource_weights[0, 3])
-            self.replicas[0] = min(max_reps, target)
+            self.replicas = np.array([min(max_reps, target), 0.0, 0.0, 0.0], dtype=np.float32)
         elif self.baseline_mode == 'local_only':
             self.traffic_split = np.array([0.0, 100.0, 0.0, 0.0], dtype=np.float32)
             target = max(1, int(np.ceil(total_requests / self.concurrency)))
             max_reps = int(self.capacities[0] / self.resource_weights[1, 0])
-            self.replicas[1] = min(max_reps, target)
+            self.replicas = np.array([0.0, min(max_reps, target), 0.0, 0.0], dtype=np.float32)
         elif self.baseline_mode == 'local_offload':
             self.traffic_split = np.array([0.0, 0.0, 0.0, 100.0], dtype=np.float32)
             target = max(1, int(np.ceil(total_requests / self.concurrency)))
             max_reps = min(int(self.capacities[0] / self.resource_weights[3, 0]), int(self.capacities[3] / self.resource_weights[3, 3]))
-            self.replicas[3] = min(max_reps, target)
+            self.replicas = np.array([0.0, 0.0, 0.0, min(max_reps, target)], dtype=np.float32)
         else:
             bound = self.get_demand_bound()
             action = np.array(action, dtype=np.float32)
@@ -214,9 +220,15 @@ class ScaleWaveEnv(gym.Env):
                 scale_down = min(1.0, max(0.0, scale_down))
                 additional_replicas = np.floor(additional_replicas * scale_down).astype(np.int32)
 
+            # Update active replicas and scale down idle pods
+            self.replicas = np.clip(self.replicas + additional_replicas, 1, 16)
+            reqs_per_service = (total_requests * (self.traffic_split / 100.0)).astype(np.int32)
+            target_reps = np.clip(np.ceil(reqs_per_service / self.concurrency), 1, 16)
+            self.replicas = np.maximum(target_reps, self.replicas - 1)
+
             # ScaleWave Eq. 2 Traffic Distribution
             p_ne = self.throughputs / (np.maximum(1e-5, self.latencies) * np.maximum(1, self.replicas))
-            projected_reps = self.replicas + additional_replicas
+            projected_reps = self.replicas
             effective_throughput_potential = self.throughputs * projected_reps
 
             sum_tp = np.sum(effective_throughput_potential)
@@ -237,24 +249,27 @@ class ScaleWaveEnv(gym.Env):
             if reqs == 0:
                 continue
             rep = self.replicas[e]
+            base_l = self.base_latencies[e]
 
-            # Physical capacity modeling from Table III & IV:
-            if e == 0:  # Cloud: 50 Mbps network uplink (8 Mb per image upload)
-                base_cap = (self.capacities[3] / 8.0) * self.dt
-                eff = max(0.39, 1.0 / (1.0 + 0.015 * max(0, reqs - 10)))
-                total_step_capacity += base_cap * eff
-            elif e == 1:  # Edge-CPU: 12 worker CPU cores (1.8 core-s per request)
-                base_cap = (self.capacities[0] / 1.8) * self.dt
-                eff = max(0.40, 1.0 / (1.0 + 0.012 * max(0, reqs - 12)))
-                total_step_capacity += base_cap * eff
-            elif e == 2:  # Edge-GPU: Jetson Nano Maxwell GPU (2.8s per request)
-                total_step_capacity += rep * (self.dt / self.base_latencies[e])
-            elif e == 3:  # Hybrid: Feature extraction on CPU (0.8 core-s) + negligible upload
-                base_cap = (self.capacities[0] / 0.8) * self.dt
-                eff = max(0.45, 1.0 / (1.0 + 0.008 * max(0, reqs - 16)))
-                total_step_capacity += base_cap * eff
+            # Physical capacity modeling from Table IV:
+            # Nominal throughput capacity for rep active replicas:
+            if e == 1:
+                # Edge-CPU container multi-core processing
+                nom_cap = rep * (self.resource_weights[1, 0] / 1.0) * (self.dt / base_l)
+            else:
+                nom_cap = rep * (self.dt / base_l)
 
-        to_serve = min(total_requests, int(total_step_capacity))
+            # Throughput throttling under resource saturation:
+            # When assigned requests exceed the provisioned container concurrency (rep * c),
+            # Linux cgroups CPU throttling or network bufferbloat reduces effective throughput:
+            utilization = reqs / max(1.0, float(rep * self.concurrency))
+            throttling_factor = 1.0 / (1.0 + 0.12 * max(0.0, utilization - 1.0))
+
+            total_step_capacity += nom_cap * throttling_factor
+
+        self.service_accumulator += total_step_capacity
+        to_serve = min(total_requests, int(self.service_accumulator))
+        self.service_accumulator -= to_serve
         rem = to_serve
         step_served = 0
         step_dropped = 0
@@ -263,29 +278,23 @@ class ScaleWaveEnv(gym.Env):
 
         base_l = self.base_latencies[np.argmax(self.traffic_split)]
         for arr_step, count in self.queue_items:
+            if rem <= 0:
+                new_q.append([arr_step, count])
+                continue
+            wait_s = (self.current_step - arr_step) * self.dt
+            lat = base_l + wait_s
+            if lat >= 300.0:
+                step_dropped += count
+                continue
             if rem >= count:
-                wait_s = (self.current_step - arr_step) * self.dt
-                lat = base_l + wait_s
-                if lat >= 300.0:
-                    step_dropped += count
-                    step_latencies.extend([300.0] * count)
-                else:
-                    step_served += count
-                    step_latencies.extend([lat] * count)
+                step_served += count
+                step_latencies.extend([lat] * count)
                 rem -= count
-            elif rem > 0:
-                wait_s = (self.current_step - arr_step) * self.dt
-                lat = base_l + wait_s
-                if lat >= 300.0:
-                    step_dropped += rem
-                    step_latencies.extend([300.0] * rem)
-                else:
-                    step_served += rem
-                    step_latencies.extend([lat] * rem)
+            else:
+                step_served += rem
+                step_latencies.extend([lat] * rem)
                 new_q.append([arr_step, count - rem])
                 rem = 0
-            else:
-                new_q.append([arr_step, count])
 
         self.queue_items = new_q
         self.queue = sum(c for _, c in self.queue_items)
