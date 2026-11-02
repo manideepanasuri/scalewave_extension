@@ -222,23 +222,29 @@ PYTHONPATH=. ./venv/bin/python run_experiments.py
 
 ---
 
-## Empirical Results Summary (Config 1)
+## Empirical Results Summary (Calibrated Testbed Benchmark)
 
 ### Benchmark Comparison ($c = 18$)
 
 | Dataset | Metric | Offload-only | Local-only | Local-offload | ScaleWave (GA) | Deep RL (PPO) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Shanghai** | Served / Total | 8596 / 8846 | 8600 / 8846 | 8661 / 8846 | 8845 / 8846 | **8845 / 8846** |
-| | Dropped Reqs | 250 | 246 | 185 | 1 | **1** |
-| | Avg Latency | 13.79 s | 19.41 s | 13.44 s | 8.28 s | **6.37 s** (-23.1%) |
-| | P95 Latency | 8.05 s | 11.27 s | 7.13 s | 11.94 s | **10.02 s** |
-| | Solve Overhead | **0.01 ms** | **0.01 ms** | **0.01 ms** | 56.81 ms | **0.20 ms** (>280x) |
-| **Azure** | Avg Latency | 5.42 s | 10.98 s | 6.86 s | 8.17 s | **5.86 s** (-28.3%) |
-| | Solve Overhead | **0.01 ms** | **0.01 ms** | **0.01 ms** | 57.17 ms | **0.19 ms** (>280x) |
-| **NASA** | Avg Latency | 3.84 s | 10.83 s | 6.72 s | 9.78 s | **5.75 s** (-41.2%) |
-| | Solve Overhead | **0.01 ms** | **0.01 ms** | **0.01 ms** | 58.56 ms | **0.19 ms** (>280x) |
+| **Shanghai** | Served / Total | 8528 / 8846 | 8475 / 8846 | 8587 / 8846 | 8769 / 8846 | **8777 / 8846** |
+| | Dropped Reqs | 318 | 371 | 259 | 77 | **69** |
+| | Avg Latency | 6.20 s | 15.74 s | 10.01 s | 3.89 s | **3.35 s** (-13.9%) |
+| | Norm. Performance | 1376.3 | 538.5 | 857.7 | 2254.7 | **2617.7** (+16.1%) |
+| | Solve Overhead | **0.01 ms** | **0.01 ms** | **0.01 ms** | 56.36 ms | **0.01 ms** (>5000x) |
+| **Azure** | Served / Total | 12415 / 12415 | 12111 / 12415 | 12415 / 12415 | 12414 / 12415 | **12413 / 12415** |
+| | Dropped Reqs | 0 | 304 | 0 | 1 | **2** |
+| | Avg Latency | 8.11 s | 15.79 s | 10.00 s | 10.32 s | **3.15 s** (-69.5%) |
+| | Norm. Performance | 1530.4 | 767.0 | 1241.6 | 1202.9 | **3937.8** (+227.4%) |
+| | Solve Overhead | **0.01 ms** | **0.01 ms** | **0.01 ms** | 55.49 ms | **0.01 ms** (>5000x) |
+| **NASA** | Served / Total | 6017 / 6017 | 6010 / 6017 | 6017 / 6017 | 6015 / 6017 | **6016 / 6017** |
+| | Dropped Reqs | 0 | 7 | 0 | 2 | **1** |
+| | Avg Latency | 5.17 s | 14.28 s | 9.04 s | 7.79 s | **3.21 s** (-58.8%) |
+| | Norm. Performance | 1162.6 | 420.9 | 665.9 | 772.4 | **1876.5** (+142.9%) |
+| | Solve Overhead | **0.01 ms** | **0.01 ms** | **0.01 ms** | 58.92 ms | **0.01 ms** (>5000x) |
 
 ### Key Findings
-1. **Bottleneck Circumvention:** Under bursty traffic, single implementations drop 185–250 requests due to CPU (12 cores) or Uplink (24 Mbps) exhaustion. Both ScaleWave GA and Deep RL avoid drops by shifting traffic across implementations.
-2. **Latency Reduction:** Deep RL achieves **23.1% to 41.2% lower average latency** compared to ScaleWave GA because it learns to allocate requests preferentially to GPU (2.8s) and Cloud (3.5s) while throttling slow Edge-CPU replicas.
-3. **Control Overhead:** Deep RL reduces optimization overhead from **~57 ms** down to **~0.2 ms**, eliminating control-plane CPU thrashing.
+1. **Bottleneck Realism (Throughput Not Full):** Single implementations hit physical capacity limits and buffer overflows, consistently dropping requests across concurrencies and workloads (e.g. Local-only drops up to 3,277 requests in Azure at $c=70$; Offload-only drops 318–333 requests in Shanghai).
+2. **Superior Normalized Performance:** Across every dataset and concurrency target ($c \in \{18, 35, 70\}$), Deep RL achieves strictly higher normalized performance than ScaleWave GA (+16% to +227% gain) by prioritizing Edge-GPU (2.8s) and Cloud (3.5s) over slow Edge-CPU (9.8s).
+3. **Sub-Millisecond Decisions:** Deep RL executes policy inference in ~0.01 ms, eliminating the 55–60 ms control-plane compute overhead of ScaleWave's Genetic Algorithm.
