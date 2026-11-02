@@ -1,0 +1,13 @@
+Regime,Concurrency,Algorithm,Avg_Latency_s,P95_Latency_s,P99_Latency_s,Avg_Solve_ms,GPU_Traffic_%,CPU_Traffic_%,Served,Dropped,Success_Rate_%
+Elastic Capacity,18,ScaleWave (GA),7.028,12.984,38.125,170.983,81.91,13.95,8845,1,99.99
+Elastic Capacity,18,Deep RL (PPO),4.562,8.346,33.934,0.184,94.16,1.8,8845,1,99.99
+Elastic Capacity,35,ScaleWave (GA),5.993,5.588,24.436,177.911,80.5,14.1,8845,1,99.99
+Elastic Capacity,35,Deep RL (PPO),3.799,3.68,21.936,0.181,94.3,1.7,8845,1,99.99
+Elastic Capacity,70,ScaleWave (GA),6.068,6.219,19.473,183.365,79.8,14.5,8844,2,99.98
+Elastic Capacity,70,Deep RL (PPO),3.564,3.646,16.973,0.29,94.8,1.6,8844,2,99.98
+Hardware Contended,18,ScaleWave (GA),59.33,71.2,76.2,155.188,27.1,21.7,8846,0,100.0
+Hardware Contended,18,Deep RL (PPO),59.714,68.5,73.5,0.184,25.0,25.0,8846,0,100.0
+Hardware Contended,35,ScaleWave (GA),120.807,141.2,153.5,157.041,26.1,21.8,8778,68,99.23
+Hardware Contended,35,Deep RL (PPO),117.55,133.5,158.5,0.178,25.0,25.0,8771,75,99.15
+Hardware Contended,70,ScaleWave (GA),249.618,281.2,300.0,156.192,20.0,20.0,8554,292,96.7
+Hardware Contended,70,Deep RL (PPO),227.823,263.5,300.0,0.18,25.0,25.0,8549,297,96.64

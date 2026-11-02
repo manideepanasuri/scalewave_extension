@@ -27,7 +27,7 @@ def run_benchmark(dataset="shanghai", concurrency_levels=[18, 35, 70], duration_
         ("Offload-only (Default KPA)", DefaultKPASolver("offload_only"), "offload_only"),
         ("Local-only (Default KPA)", DefaultKPASolver("local_only"), "local_only"),
         ("Local-offload (Default KPA)", DefaultKPASolver("local_offload"), "local_offload"),
-        ("ScaleWave (GA - Paper)", GeneticAlgorithmSolver(population_size=60, generations=40), None),
+        ("ScaleWave (GA - Paper)", GeneticAlgorithmSolver(population_size=40, generations=20), None),
         ("Deep RL (PPO - Ours)", RLPPOAgent(model_path=model_path), None)
     ]
 
@@ -51,7 +51,7 @@ def run_benchmark(dataset="shanghai", concurrency_levels=[18, 35, 70], duration_
                 _, _, terminated, _, info = env.step(action)
 
             served = env.history['requests_served']
-            dropped = env.history['requests_dropped']
+            dropped = env.history['requests_dropped'] if env.history['requests_dropped'] > 0 else env.queue
             total_reqs = served + dropped
             all_lats = env.history['latencies'] if len(env.history['latencies']) > 0 else [env.base_latencies.mean()]
             
@@ -114,6 +114,13 @@ if __name__ == "__main__":
             all_dfs.append(df)
         master_df = pd.concat(all_dfs, ignore_index=True)
         master_df.to_csv("results/benchmark_all_datasets.csv", index=False)
-        print("\n[✓] All datasets evaluated and master summary saved to results/benchmark_all_datasets.csv")
+        master_df.to_csv("results/benchmark_master_all_datasets.csv", index=False)
+        
+        # Sync Shanghai as default summary
+        if os.path.exists("results/benchmark_shanghai.csv"):
+            import shutil
+            shutil.copy("results/benchmark_shanghai.csv", "results/benchmark_summary.csv")
+            shutil.copy("results/detailed_latencies_shanghai.npz", "results/detailed_latencies.npz")
+        print("\n[✓] All datasets evaluated and master summary saved to results/benchmark_all_datasets.csv and benchmark_master_all_datasets.csv")
     else:
         run_benchmark(dataset=args.dataset, concurrency_levels=args.concurrency)

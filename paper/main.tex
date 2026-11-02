@@ -1,0 +1,72 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{booktabs}
+\graphicspath{{./figures/}}
+
+\begin{document}
+
+\title{Sub-Millisecond Multi-Implementation Autoscaling for Edge Serverless Computing via Constrained Deep Reinforcement Learning}
+
+\author{\IEEEauthorblockN{Anonymous Authors}}
+
+\maketitle
+
+\begin{abstract}
+% Section 0: Bilingual / English Abstract to be finalized in drafting phase.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Serverless Computing, Edge Intelligence, Knative Autoscaling, Multi-Implementation Dispatching, Deep Reinforcement Learning, PPO.
+\end{IEEEkeywords}
+
+\section{Introduction}
+% - Motivation: Edge serverless bottleneck heterogeneity (CPU, GPU, Uplink).
+% - Limitation of single-implementation KPA and ScaleWave GA (156 ms decision latency, CPU burn).
+% - Our core idea: Sub-millisecond PPO policy with physical action masking.
+% - 3-bullet contribution statement.
+
+\section{Background and Related Work}
+% - Knative Serving, KPA, and Concurrency Target scaling.
+% - Multi-Implementation Equivalence and the ScaleWave MMKP Formulation.
+% - Deep Reinforcement Learning for Edge Resource Management.
+
+\section{System Architecture and Problem Formulation}
+% - Multi-Resource Micro-Edge Cluster Model.
+% - Constrained Multi-Implementation Scaling Formulation.
+% - Physical Action Masking and Safety Guarantees.
+% - Deep RL Agent Architecture (Actor-Critic PPO with 17-dimensional state space).
+
+\section{Experimental Methodology}
+% - Multi-Dataset Real-World Traces (Shanghai Telecom, Azure Functions 2019, NASA Flash Crowd).
+% - Testbed Setup and Physical Container Dynamics (Cgroups CPU Throttling, Network Saturation).
+% - Baseline Algorithms: Offload-only, Local-only, Local-offload, ScaleWave GA.
+% - Key Performance Metrics (Throughput, Tail Latency, Solve Overhead, Efficiency).
+
+\section{Evaluation}
+% - Section A: Physical Testbed Reproduction (PerCom 2026 Figure 7).
+% - Section B: Request Throughput and Success Rates under High Concurrency.
+% - Section C: End-to-End and Tail Latency CDF Analysis.
+% - Section D: Optimization Overhead and Control-Plane Decision Latency (866x Speedup).
+% - Section E: Resource Allocation and Saturation Profiling.
+% - Section F: Multi-Dataset Robustness (Azure Functions and NASA HTTP Access Logs).
+% - Section G: Ablation Study: Elastic Capacity vs. Contended Hardware Dynamics.
+
+\section{Discussion and Limitations}
+% - Control-plane vs Data-plane Metric Decoupling.
+% - Offline Training vs Online Heuristic Trade-offs.
+% - Scalability to High Implementation Cardinality.
+
+\section{Conclusion}
+% - Summary of findings and future research directions.
+
+\bibliographystyle{IEEEtran}
+\bibliography{ref}
+
+\end{document}
