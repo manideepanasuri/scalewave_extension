@@ -50,7 +50,7 @@ class ScaleWaveEnv(gym.Env):
     """
     Calibrated Gymnasium environment reproducing physical testbed dynamics (IEEE PerCom 2026):
       - 4 Equivalent Implementations: [0: Cloud, 1: Edge-CPU, 2: Edge-GPU, 3: Hybrid]
-      - Hardware Capacities: CPU (16.0 cores), RAM (24.0 GB), GPU (128.0 cores), Uplink (36.0 Mbps)
+      - Hardware Capacities: CPU (12.0 cores), RAM (20.0 GB), GPU (128.0 cores), Uplink (24.0 Mbps)
       - Knative Pod Autoscaler (KPA) concurrency targets (c = 18, 35, 70)
       - Realistic single-implementation bottlenecks with Knative timeout drops
       - Deep RL (PPO) routes preferentially to GPU (2.8s) and Cloud (3.5s), achieving strictly
@@ -66,9 +66,9 @@ class ScaleWaveEnv(gym.Env):
         self.num_services = 4
         self.service_names = ['cloud', 'edge_cpu', 'edge_gpu', 'hybrid']
 
-        # Hardware Capacities (Config 5):
+        # Hardware Capacities (Config 1):
         # [CPU cores, Memory GB, GPU cores, Network Uplink Mbps]
-        self.capacities = np.array([16.0, 24.0, 128.0, 36.0], dtype=np.float32)
+        self.capacities = np.array([12.0, 20.0, 128.0, 24.0], dtype=np.float32)
 
         # Resource consumption per replica (Table IV):
         # 0: Cloud (0.1 CPU, 0.2 GB, 0 GPU, 12.0 Mbps uplink)
